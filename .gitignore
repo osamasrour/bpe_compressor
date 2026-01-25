@@ -1,0 +1,6 @@
+*.txt
+training
+*.exe
+hm_test.c
+_
+test_ds.c
