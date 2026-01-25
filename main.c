@@ -1,5 +1,3 @@
-// TODO: making a simple script to collect an array using byte-pair-encoding algorithm
-// TODO: implement better version of the algo that acts like Wikipedia describes
 
 #include <stdio.h>
 #include <limits.h>
