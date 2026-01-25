@@ -409,7 +409,7 @@ void bpe_v6(LLST* ll_txt){
 				free(next_node->data);
 				free(next_node);
 				ll_txt->length--;
-				// TODO: check the adding logic, make sure you add every new pair => "the bug is here"
+				// TODO(#1): check the adding logic, make sure you add every new pair => "the bug is here"
 				if(prev_node != NULL){
 					uint32_t before_pair_l = *(uint32_t*)(prev_node->data);
 					pair test_pair = {.l = before_pair_l, .r = higgest_trecker_value};
