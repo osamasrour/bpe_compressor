@@ -113,7 +113,7 @@ void LLST_from_SV2(LLST* llst, String_View* sv){
 }
 
 
-// the algo complexity: f(x) = 0.00226*(x*x)
+// the algo complexity: f(x) = 0.00226*(x*x), which x: size of the file in KB, and f(x): number of seconds
 void bpe_v6(LLST* ll_txt){
     static uint32_t iter = 0;
     uint32_t higgest_trecker_value = 0;
