@@ -13,8 +13,10 @@
 #include "llst.h"
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
-#define MINIMUM_FREQUENCY_ALLOWED (10/100)
 
+#if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
+#error "TODO: this only work on a little-indian maichine\n"
+#endif //! __ORDER_LITTLE_ENDIAN__
 
 typedef struct pair{
 	uint32_t l, r;
@@ -25,13 +27,21 @@ typedef struct pairs_map{
 	uint32_t value;
 } pairs_map;
 
+typedef struct freq{
+	uint32_t node;
+	pair leaf;
+}freq;
+
 
 FILE* f;
 void DA_from_SV(DArray*, String_View*);
 void LLST_from_SV(LLST*, String_View*);
-void LLST_from_SV2(LLST*, String_View*);
-// TODO: interduce bpe_v6 which uses integer rather than char* to optimize the algo
+void LLSTu32_from_SV2(LLST*, String_View*);
+// TODO(#2): make it compress algo - encode and decode functions - to compress and decompress the files
+// to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
+// decompress it back
 void bpe_v6(LLST*);
+
 
 int main(int argc, char const *argv[]){
 	if(argc < 3){
@@ -53,16 +63,26 @@ int main(int argc, char const *argv[]){
 	fclose(f2);
 	printf("Number Of Chars in the FILE = %llu\n", sv_txt.length);
 	LLST ll_txt = LLST_create(sizeof(uint32_t));
-	// LLST_from_SV(&ll_txt, &sv_txt);
-	LLST_from_SV2(&ll_txt, &sv_txt);
+	LLSTu32_from_SV2(&ll_txt, &sv_txt);
 	printf("Number of elements in the ll_txt = %llu\n", ll_txt.length);
-	// LLNode *current_tk = NULL;
-	// current_tk = ll_txt.head;
-	// // for(size_t _ = 0; current_tk != NULL; _++){
-	// // 	fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
-	// // 	current_tk = current_tk->next;
-	// // }
+#define LOG 0
+#if LOG
+	LLNode *current_tk = NULL;
+	current_tk = ll_txt.head;
+	for(size_t _ = 0; current_tk != NULL; _++){
+		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
+		current_tk = current_tk->next;
+	}
+#endif
 	bpe_v6(&ll_txt);
+#if LOG
+	current_tk = NULL;
+	current_tk = ll_txt.head;
+	for(size_t _ = 0; current_tk != NULL; _++){
+		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
+		current_tk = current_tk->next;
+	}
+#endif
 	SV_destroy(&sv_txt);
 	fclose(f);
 	return 0;
@@ -101,7 +121,7 @@ void LLST_from_SV(LLST* llst, String_View* sv){
 	}
 }
 
-void LLST_from_SV2(LLST* llst, String_View* sv){
+void LLSTu32_from_SV2(LLST* llst, String_View* sv){
 	assert(llst->length == 0);
 	llst->element_size = sizeof(uint32_t);
 	for(size_t ch = 0; ch < sv->length; ch++){
@@ -117,6 +137,8 @@ void LLST_from_SV2(LLST* llst, String_View* sv){
 void bpe_v6(LLST* ll_txt){
     static uint32_t iter = 0;
     uint32_t higgest_trecker_value = 0;
+    // TODO: we need to dump this array into a file with the compressed text.
+    DArray freqs = DA_create_array(sizeof(freq), 256, 256);
 
     // 1. Initial Scan for Highest ID
     LLNode *current_node = ll_txt->head;
@@ -126,6 +148,9 @@ void bpe_v6(LLST* ll_txt){
         }
         current_node = current_node->next;
     }
+
+    uint32_t highest_sample_id = higgest_trecker_value; // The value of the highest sample we reached in the article.
+    printf("\nThe higgest ID: %u\n\n", highest_sample_id);
 
     pairs_map* merge_hash_map_p = NULL;
     pairs_map most_repated_pair = {0};
@@ -149,13 +174,14 @@ void bpe_v6(LLST* ll_txt){
     while(1){
         // Find the most frequent pair in the map
         most_repated_pair = (pairs_map){0};
-        for(int i = 0; i < hmlen(merge_hash_map_p); ++i) {
+        int hashmap_length = hmlen(merge_hash_map_p);
+        for(int i = 0; i < hashmap_length; ++i) {
             if(merge_hash_map_p[i].value > most_repated_pair.value) {
                 most_repated_pair = merge_hash_map_p[i];
             }
         }
 
-        if(most_repated_pair.value <= 2) {
+        if(most_repated_pair.value <= 2) { // TODO: replace '2' with calculated cost value
         	printf("\n\n[EXIT]tokens count: %lld\n", hmlen(merge_hash_map_p));
         	break;
         };
@@ -182,6 +208,22 @@ void bpe_v6(LLST* ll_txt){
             }
         }
 
+        // append the freq node to the freqs
+        freq higgest_freq = {.node = higgest_trecker_value,
+    				.leaf = {
+    					.l = most_repated_pair.key.l,
+    					.r = most_repated_pair.key.r
+    				}};
+        DA_append(&freqs, (void*)&higgest_freq);
+
+        int start = 0;
+        if (start >= 0){
+        	// if this assertion passed this means that:
+        	// 	(freq index in the freqs array) = freq.node - (highest_sample_id+1)
+        	assert(((freq*)DA_get_element(&freqs, start))->node == highest_sample_id+1+start);
+        	start++;
+        }
+
         // 4. SEPARATE MAP UPDATE LOOP
         // This loop wipes the map and re-calculates everything from the new list
         hmfree(merge_hash_map_p);
@@ -201,5 +243,6 @@ void bpe_v6(LLST* ll_txt){
         printf("Iteration %.4d: Merged (%.4u, %.4u) into %.4u, tokens count: %.4lld   \r", 
                 ++iter, most_repated_pair.key.l, most_repated_pair.key.r, higgest_trecker_value, hmlen(merge_hash_map_p));
     }
+
     printf("\n");
 }

@@ -36,6 +36,8 @@ DADEF void DA_reset(DArray* da);
 DADEF void DA_clear(DArray* da);
 DADEF void DA_destroy(DArray* da);
 
+#endif // DARRAY_H_
+
 #ifdef DA_IMPLEMENTATION
 
 DADEF DArray DA_create_array(uint16_t element_size, 
@@ -142,4 +144,4 @@ DADEF void DA_destroy(DArray* da){
 }
 
 #endif // DA_IMPLEMENTATION
-#endif // DARRAY_H_
+
