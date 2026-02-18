@@ -37,6 +37,7 @@ typedef struct freq{
 typedef struct bpe{
 	char header[BPE_HEADER_CAP]; // => BPE0LE -> BPE[version](LE | BE)
 	LLST compressed;
+	uint32_t highest_id;
 	DArray freqs;
 }bpe;
 
@@ -48,7 +49,7 @@ void LLSTu32_from_SV2(LLST*, String_View*);
 // TODO(#2): make it compress algo - encode and decode functions - to compress and decompress the files
 // to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
 // decompress it back
-void bpe_encode(bpe*, LLST*);
+void bpe_encode(bpe*);
 
 
 int main(int argc, char const *argv[]){
@@ -82,10 +83,20 @@ int main(int argc, char const *argv[]){
 		current_tk = current_tk->next;
 	}
 #endif
-	bpe_encode(&ll_txt);
+	bpe user = {0};
+	memcpy(user.header, 
+			(char[BPE_HEADER_CAP]){'B', 'P', 'E', '0', 'L', 'E'}, 
+			BPE_HEADER_CAP);
+	printf("[INFO]: HEADER => %6s\n", user.header);
+	user.compressed = ll_txt;
+	// TODO: we need to dump this array into a file with the compressed text.
+	user.freqs = DA_create_array(sizeof(freq), 256, 256);
+
+
+	bpe_encode(&user);
 #if LOG
 	current_tk = NULL;
-	current_tk = ll_txt.head;
+	current_tk = user->compressed.head;
 	for(size_t _ = 0; current_tk != NULL; _++){
 		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
 		current_tk = current_tk->next;
@@ -142,14 +153,13 @@ void LLSTu32_from_SV2(LLST* llst, String_View* sv){
 
 
 // the algo complexity: f(x) = 0.00226*(x*x), which x: size of the file in KB, and f(x): number of seconds
-void bpe_encode(LLST* ll_txt){
+void bpe_encode(bpe* user){
     static uint32_t iter = 0;
     uint32_t higgest_trecker_value = 0;
-    // TODO: we need to dump this array into a file with the compressed text.
-    DArray freqs = DA_create_array(sizeof(freq), 256, 256);
-
+    
+    
     // 1. Initial Scan for Highest ID
-    LLNode *current_node = ll_txt->head;
+    LLNode *current_node = (&user->compressed)->head;
     while(current_node != NULL){
         if(higgest_trecker_value < *(uint32_t*)current_node->data){
             higgest_trecker_value = *(uint32_t*)current_node->data;
@@ -157,14 +167,14 @@ void bpe_encode(LLST* ll_txt){
         current_node = current_node->next;
     }
 
-    uint32_t highest_sample_id = higgest_trecker_value; // The value of the highest sample we reached in the article.
-    printf("\nThe higgest ID: %u\n\n", highest_sample_id);
+    user->highest_id = higgest_trecker_value; // The value of the highest sample we reached in the article.
+    printf("\nThe higgest ID: %u\n\n", user->highest_id);
 
     pairs_map* merge_hash_map_p = NULL;
     pairs_map most_repated_pair = {0};
 
     // 2. Initial Map Generation
-    current_node = ll_txt->head;
+    current_node = (&user->compressed)->head;
     while(current_node != NULL && current_node->next != NULL){
         pair test_pair = {
             .l = *(uint32_t*)(current_node->data), 
@@ -197,7 +207,7 @@ void bpe_encode(LLST* ll_txt){
         // 3. SEPARATE MERGE LOOP
         // This loop only handles replacing the pairs in the linked list
         ++higgest_trecker_value;
-        current_node = ll_txt->head;
+        current_node = (&user->compressed)->head;
         while(current_node != NULL && current_node->next != NULL){
             uint32_t l = *(uint32_t*)(current_node->data);
             uint32_t r = *(uint32_t*)(current_node->next->data);
@@ -206,11 +216,11 @@ void bpe_encode(LLST* ll_txt){
                 *(uint32_t*)current_node->data = higgest_trecker_value;
                 LLNode *next_node = current_node->next;
                 current_node->next = next_node->next;
-                if(ll_txt->tail == next_node) ll_txt->tail = current_node;
+                if((&user->compressed)->tail == next_node) (&user->compressed)->tail = current_node;
                 
                 free(next_node->data);
                 free(next_node);
-                ll_txt->length--;
+                (&user->compressed)->length--;
             } else {
                 current_node = current_node->next;
             }
@@ -222,13 +232,13 @@ void bpe_encode(LLST* ll_txt){
     					.l = most_repated_pair.key.l,
     					.r = most_repated_pair.key.r
     				}};
-        DA_append(&freqs, (void*)&higgest_freq);
+        DA_append(&(user->freqs), (void*)&higgest_freq);
 
         int start = 0;
         if (start >= 0){
         	// if this assertion passed this means that:
-        	// 	(freq index in the freqs array) = freq.node - (highest_sample_id+1)
-        	assert(((freq*)DA_get_element(&freqs, start))->node == highest_sample_id+1+start);
+        	// 	(freq index in the freqs array) = freq.node - (user->highest_id+1)
+        	assert(((freq*)DA_get_element(&(user->freqs), start))->node == user->highest_id+1+start);
         	start++;
         }
 
@@ -236,7 +246,7 @@ void bpe_encode(LLST* ll_txt){
         // This loop wipes the map and re-calculates everything from the new list
         hmfree(merge_hash_map_p);
         merge_hash_map_p = NULL;
-        current_node = ll_txt->head;
+        current_node = (&user->compressed)->head;
         while(current_node != NULL && current_node->next != NULL){
             pair test_pair = {
                 .l = *(uint32_t*)current_node->data, 
