@@ -33,6 +33,14 @@ typedef struct freq{
 }freq;
 
 
+#define BPE_HEADER_CAP 6
+typedef struct bpe{
+	char header[BPE_HEADER_CAP]; // => BPE0LE -> BPE[version](LE | BE)
+	LLST compressed;
+	DArray freqs;
+}bpe;
+
+
 FILE* f;
 void DA_from_SV(DArray*, String_View*);
 void LLST_from_SV(LLST*, String_View*);
@@ -40,7 +48,7 @@ void LLSTu32_from_SV2(LLST*, String_View*);
 // TODO(#2): make it compress algo - encode and decode functions - to compress and decompress the files
 // to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
 // decompress it back
-void bpe_v6(LLST*);
+void bpe_encode(bpe*, LLST*);
 
 
 int main(int argc, char const *argv[]){
@@ -74,7 +82,7 @@ int main(int argc, char const *argv[]){
 		current_tk = current_tk->next;
 	}
 #endif
-	bpe_v6(&ll_txt);
+	bpe_encode(&ll_txt);
 #if LOG
 	current_tk = NULL;
 	current_tk = ll_txt.head;
@@ -134,7 +142,7 @@ void LLSTu32_from_SV2(LLST* llst, String_View* sv){
 
 
 // the algo complexity: f(x) = 0.00226*(x*x), which x: size of the file in KB, and f(x): number of seconds
-void bpe_v6(LLST* ll_txt){
+void bpe_encode(LLST* ll_txt){
     static uint32_t iter = 0;
     uint32_t higgest_trecker_value = 0;
     // TODO: we need to dump this array into a file with the compressed text.
