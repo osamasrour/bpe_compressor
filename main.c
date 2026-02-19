@@ -57,7 +57,7 @@ void llst_log(LLST);
 // decompress it back
 void bpe_encode(bpe*);
 
-int bpe_dump(bpe*, const char*);
+int bpe_store(bpe*, const char*);
 
 int main(int argc, char const *argv[]){
 	if(argc < 3){
@@ -94,7 +94,7 @@ int main(int argc, char const *argv[]){
 	user.freqs = DA_create_array(sizeof(freq), 256, 256);
 	bpe_encode(&user);
 	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
-	assert(bpe_dump(&user, output_path) == 0);
+	assert(bpe_store(&user, output_path) == 0);
 #if LOG
 	llst_log(ll_txt);
 #endif
@@ -270,7 +270,7 @@ void bpe_encode(bpe* user){
 }
 
 
-int bpe_dump(bpe* ctx, const char* file_path){
+int bpe_store(bpe* ctx, const char* file_path){
 
 	FILE *file = fopen(file_path, "wb");
     if (file == NULL) {
