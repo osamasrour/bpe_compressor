@@ -56,10 +56,30 @@ void llst_log(LLST);
 // to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
 // decompress it back
 void bpe_encode(bpe*);
-
-int bpe_store(bpe*, const char*);
+int bpe_pack(bpe*, const char*);
+int bpe_unpack(bpe*, const char*);
 
 int main(int argc, char const *argv[]){
+	if(argc < 2){
+		fprintf(stderr, "[INFO]: USAGE: <%s> <input.txt> <output.txt>\n", argv[0]);
+		exit(1);
+	}
+	const char* input_path =  argv[1];
+	// const char* output_path = argv[2];
+	bpe user = {0};
+	user.compressed = LLST_create(sizeof(uint32_t));
+	user.freqs = DA_create_array(sizeof(uint32_t), 256, 256);
+	assert(bpe_unpack(&user, input_path) == 0);
+	printf("[INFO]: HEADER => %6s\n", user.header);
+	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
+	printf("[INFO] user.highest_id = %u\n", user.highest_id);
+	printf("[INFO] user.freqs.length = %u\n", user.freqs.length);
+	return 0;
+
+}
+
+
+int main2(int argc, char const *argv[]){
 	if(argc < 3){
 		fprintf(stderr, "[INFO]: USAGE: <%s> <input.txt> <output.txt>\n", argv[0]);
 		exit(1);
@@ -94,7 +114,7 @@ int main(int argc, char const *argv[]){
 	user.freqs = DA_create_array(sizeof(freq), 256, 256);
 	bpe_encode(&user);
 	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
-	assert(bpe_store(&user, output_path) == 0);
+	assert(bpe_pack(&user, output_path) == 0);
 #if LOG
 	llst_log(ll_txt);
 #endif
@@ -270,7 +290,7 @@ void bpe_encode(bpe* user){
 }
 
 
-int bpe_store(bpe* ctx, const char* file_path){
+int bpe_pack(bpe* ctx, const char* file_path){
 
 	FILE *file = fopen(file_path, "wb");
     if (file == NULL) {
@@ -302,7 +322,7 @@ int bpe_store(bpe* ctx, const char* file_path){
     ret = fwrite(&ctx->highest_id, sizeof(uint32_t), 1, file);
     assert(ret == 1);
 
-    // Writing the ctx->highest_id
+    // Writing the ctx->freqs.length
     printf("[INFO] ctx->freqs.length = %u\n", ctx->freqs.length);
     ret = fwrite(&ctx->freqs.length, sizeof(uint32_t), 1, file);
     assert(ret == 1);
@@ -318,5 +338,57 @@ int bpe_store(bpe* ctx, const char* file_path){
 
     return 0;
 
+}
+
+int bpe_unpack(bpe* ctx, const char* file_path){
+	FILE *file = fopen(file_path, "rb");
+    if (file == NULL) {
+        return -1;
+    }
+
+    int ret;
+    ret = fread(&(ctx->header), sizeof(char), BPE_HEADER_CAP, file);
+    assert(ret == BPE_HEADER_CAP);
+    // TODO: handle the version here
+
+
+    uint32_t compressed_length = 0;
+    uint32_t* compressed_length_ptr = &compressed_length;
+    ret = fread(compressed_length_ptr, sizeof(uint32_t), 1, file);
+    assert(ret > 0);
+
+    // Read ctx->compressed
+    uint32_t data;
+    for(uint32_t _ = 0; _ < compressed_length; _++){
+    	ret = fread(&data, sizeof(uint32_t), 1, file);
+    	assert(ret > 0);
+    	// TODO: make a progress bar here
+    	LLST_append(&(ctx->compressed), &data);
+    }
+    assert(compressed_length == ctx->compressed.length);
+
+	// Read bpe.higthest_id
+	ret = fread(&(ctx->highest_id), sizeof(uint32_t), 1, file);
+	assert(ret > 0);
+
+	// Read ctx->freqs.length
+	uint32_t freqs_length;
+	ret = fread(&freqs_length, sizeof(uint32_t), 1, file);
+	assert(ret > 0);
+
+	// Read ctx->freqs
+	freq a;
+	for(uint32_t i = 0; i < freqs_length; i++){
+
+		ret = fread(&a, sizeof(freq), 1, file);
+		DA_append(&(ctx->freqs), (void*)&a);
+	}
+	assert(freqs_length == ctx->freqs.length);
+
+	// make sure we reached the end of the file
+	assert(fread(&ret, sizeof(char), 1, file) == 0);
+
+    fclose(file);
+    return 0;
 }
 

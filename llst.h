@@ -16,7 +16,7 @@ typedef struct LLNode {
 typedef struct {
 	LLNode *head;			// pointer to the head
 	LLNode *tail;			// pointer to the tail
-	uint32_t length;			// Number of elements in the array
+	uint32_t length;		// Number of elements in the array
 	uint16_t element_size;  // size of the element in byte
 } LLST;
 
