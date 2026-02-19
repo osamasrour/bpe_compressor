@@ -14,9 +14,14 @@
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
 
+
+
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
 #error "TODO: this only work on a little-indian maichine\n"
 #endif //! __ORDER_LITTLE_ENDIAN__
+
+#define MINIMUM_REPET_COST 6
+
 
 typedef struct pair{
 	uint32_t l, r;
@@ -46,11 +51,13 @@ FILE* f;
 void DA_from_SV(DArray*, String_View*);
 void LLST_from_SV(LLST*, String_View*);
 void LLSTu32_from_SV2(LLST*, String_View*);
+void llst_log(LLST);
 // TODO(#2): make it compress algo - encode and decode functions - to compress and decompress the files
 // to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
 // decompress it back
 void bpe_encode(bpe*);
 
+int bpe_dump(bpe*, const char*);
 
 int main(int argc, char const *argv[]){
 	if(argc < 3){
@@ -60,7 +67,6 @@ int main(int argc, char const *argv[]){
 	const char* input_path =  argv[1];
 	const char* output_path = argv[2];
 	printf("[INFO] Excuting BPE on %s\n", input_path);
-	f = fopen(output_path, "w");
 	FILE* f2 = fopen(input_path, "r");
 	if(f2 == NULL){
 		fprintf(stderr, "%s\n", strerror(errno));
@@ -73,15 +79,10 @@ int main(int argc, char const *argv[]){
 	printf("Number Of Chars in the FILE = %llu\n", sv_txt.length);
 	LLST ll_txt = LLST_create(sizeof(uint32_t));
 	LLSTu32_from_SV2(&ll_txt, &sv_txt);
-	printf("Number of elements in the ll_txt = %llu\n", ll_txt.length);
+	printf("Number of elements in the ll_txt = %u\n", ll_txt.length);
 #define LOG 0
 #if LOG
-	LLNode *current_tk = NULL;
-	current_tk = ll_txt.head;
-	for(size_t _ = 0; current_tk != NULL; _++){
-		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
-		current_tk = current_tk->next;
-	}
+	llst_log(ll_txt);
 #endif
 	bpe user = {0};
 	memcpy(user.header, 
@@ -91,16 +92,11 @@ int main(int argc, char const *argv[]){
 	user.compressed = ll_txt;
 	// TODO: we need to dump this array into a file with the compressed text.
 	user.freqs = DA_create_array(sizeof(freq), 256, 256);
-
-
 	bpe_encode(&user);
+	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
+	assert(bpe_dump(&user, output_path) == 0);
 #if LOG
-	current_tk = NULL;
-	current_tk = user->compressed.head;
-	for(size_t _ = 0; current_tk != NULL; _++){
-		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
-		current_tk = current_tk->next;
-	}
+	llst_log(ll_txt);
 #endif
 	SV_destroy(&sv_txt);
 	fclose(f);
@@ -151,6 +147,14 @@ void LLSTu32_from_SV2(LLST* llst, String_View* sv){
 	}
 }
 
+void llst_log(LLST ll){
+	LLNode* current_tk = NULL;
+	current_tk = ll.head;
+	for(size_t _ = 0; current_tk != NULL; _++){
+		fprintf(stdout, "%u,",*(uint32_t*)(current_tk->data));
+		current_tk = current_tk->next;
+	}
+}
 
 // the algo complexity: f(x) = 0.00226*(x*x), which x: size of the file in KB, and f(x): number of seconds
 void bpe_encode(bpe* user){
@@ -199,7 +203,7 @@ void bpe_encode(bpe* user){
             }
         }
 
-        if(most_repated_pair.value <= 2) { // TODO: replace '2' with calculated cost value
+        if(most_repated_pair.value <= MINIMUM_REPET_COST) {
         	printf("\n\n[EXIT]tokens count: %lld\n", hmlen(merge_hash_map_p));
         	break;
         };
@@ -264,3 +268,55 @@ void bpe_encode(bpe* user){
 
     printf("\n");
 }
+
+
+int bpe_dump(bpe* ctx, const char* file_path){
+
+	FILE *file = fopen(file_path, "wb");
+    if (file == NULL) {
+        return -1;
+    }
+
+    // Writing the header
+    int ret;
+    ret = fwrite(&ctx->header, sizeof(char), BPE_HEADER_CAP, file);
+    assert(ret == BPE_HEADER_CAP);
+
+    // Writing the ctx->compressed.length
+    printf("[INFO] ctx->compressed.length = %u\n", ctx->compressed.length);
+    ret = fwrite(&ctx->compressed.length, sizeof(uint32_t), 1, file);
+    assert(ret == 1);
+
+    // Writing the ctx->compressed
+    LLNode* current = NULL;
+    current = ctx->compressed.head;
+    ret = 0;
+    for(size_t _ = 0; current != NULL; _++){
+		ret += fwrite(current->data, sizeof(uint32_t), 1, file);
+		current = current->next;
+	}
+	assert(ret == (int)ctx->compressed.length);
+    
+    // Writing the ctx->highest_id
+    printf("[INFO] ctx->highest_id = %u\n", ctx->highest_id);
+    ret = fwrite(&ctx->highest_id, sizeof(uint32_t), 1, file);
+    assert(ret == 1);
+
+    // Writing the ctx->highest_id
+    printf("[INFO] ctx->freqs.length = %u\n", ctx->freqs.length);
+    ret = fwrite(&ctx->freqs.length, sizeof(uint32_t), 1, file);
+    assert(ret == 1);
+
+	// Writing the ctx->freqs
+	ret = 0;
+	for(uint32_t i = 0; i < ctx->freqs.length; i++){
+		ret += fwrite(DA_get_element(&ctx->freqs, i), sizeof(freq), 1, file);
+	}
+	assert(ret == (int)ctx->freqs.length);
+
+	fclose(file);
+
+    return 0;
+
+}
+
