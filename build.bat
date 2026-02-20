@@ -1,6 +1,12 @@
 cls
 
 @echo off
+IF /I "%1" == "" (
+	@echo on
+	call gcc -Wall -Wextra -ggdb -o0 -o main.exe main.c
+)
+
+@echo off
 IF /I "%1" == "run" (
 	@echo on
 	call gcc -Wall -Wextra -ggdb -o3 -o main.exe main.c
