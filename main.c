@@ -17,7 +17,7 @@
 
 
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
-#error "TODO: this only work on a little-indian maichine\n"
+#error "[ERROR]: this only work on a little-indian maichine\n"
 #endif //! __ORDER_LITTLE_ENDIAN__
 
 #define MINIMUM_REPET_COST 6
@@ -49,6 +49,7 @@ typedef struct bpe{
 
 FILE* f;
 void DA_from_SV(DArray*, String_View*);
+void SV_from_DA(String_View*, DArray*);
 void LLST_from_SV(LLST*, String_View*);
 void LLSTu32_from_SV2(LLST*, String_View*);
 void llst_log(LLST);
@@ -58,22 +59,21 @@ void llst_log(LLST);
 void bpe_encode(bpe*);
 int bpe_pack(bpe*, const char*);
 int bpe_unpack(bpe*, const char*);
+void bpe_decode(bpe*, String_View*);
 
 int main(int argc, char const *argv[]){
 	if(argc < 2){
-		fprintf(stderr, "[INFO]: USAGE: <%s> <input.txt> <output.txt>\n", argv[0]);
+		fprintf(stderr, "[INFO]: USAGE: <%s> <input.txt>\n", argv[0]);
 		exit(1);
 	}
 	const char* input_path =  argv[1];
 	// const char* output_path = argv[2];
 	bpe user = {0};
 	user.compressed = LLST_create(sizeof(uint32_t));
-	user.freqs = DA_create_array(sizeof(uint32_t), 256, 256);
+	user.freqs = DA_create_array(sizeof(freq), 256, 256);
 	assert(bpe_unpack(&user, input_path) == 0);
-	printf("[INFO]: HEADER => %6s\n", user.header);
-	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
-	printf("[INFO] user.highest_id = %u\n", user.highest_id);
-	printf("[INFO] user.freqs.length = %u\n", user.freqs.length);
+	String_View text = SV_create("");
+	bpe_decode(&user, &text);
 	return 0;
 
 }
@@ -110,10 +110,10 @@ int main2(int argc, char const *argv[]){
 			BPE_HEADER_CAP);
 	printf("[INFO]: HEADER => %6s\n", user.header);
 	user.compressed = ll_txt;
-	// TODO: we need to dump this array into a file with the compressed text.
 	user.freqs = DA_create_array(sizeof(freq), 256, 256);
 	bpe_encode(&user);
 	printf("[INFO] user.compressed.length = %u\n", user.compressed.length);
+	printf("[INFO] sizeof(freq) = %llu\n", sizeof(freq));
 	assert(bpe_pack(&user, output_path) == 0);
 #if LOG
 	llst_log(ll_txt);
@@ -142,6 +142,15 @@ void DA_from_SV(DArray* da, String_View* sv){
 	}
 }
 
+void SV_from_DA(String_View* sv, DArray* da){
+	char *chunk = malloc(da->length * sizeof(char));
+	memset(chunk, 0, da->length);
+	for(uint32_t i = 0; i < da->length; i++){
+		chunk[i] = *(uint8_t*)DA_get_element(da, i);
+	}
+	SV_merge_parts(sv,chunk, da->length);
+}
+
 
 void LLST_from_SV(LLST* llst, String_View* sv){
 	assert(llst->length == 0);
@@ -161,8 +170,9 @@ void LLSTu32_from_SV2(LLST* llst, String_View* sv){
 	llst->element_size = sizeof(uint32_t);
 	for(size_t ch = 0; ch < sv->length; ch++){
 		uint32_t* _char = (uint32_t*)malloc(sizeof(uint32_t));
+		memset(_char, 0, sizeof(uint32_t));
 		assert(_char != NULL);
-		*_char = (uint32_t)SV_get_by_index(sv, ch);
+		*_char = (uint32_t)(unsigned char)SV_get_by_index(sv, ch);
 		LLST_append(llst, _char);
 	}
 }
@@ -330,7 +340,15 @@ int bpe_pack(bpe* ctx, const char* file_path){
 	// Writing the ctx->freqs
 	ret = 0;
 	for(uint32_t i = 0; i < ctx->freqs.length; i++){
-		ret += fwrite(DA_get_element(&ctx->freqs, i), sizeof(freq), 1, file);
+		// log freqs
+		freq* freq_ptr = DA_get_element(&ctx->freqs, i);
+		printf("   /|%u\n", ((freq*)freq_ptr)->leaf.l);
+		printf("%u\n", ((freq*)freq_ptr)->node);
+		printf("   \\|%u\n\n", ((freq*)freq_ptr)->leaf.r);
+
+		ret += fwrite(&freq_ptr->node, sizeof(uint32_t), 1, file);
+		fwrite(&freq_ptr->leaf.l, sizeof(uint32_t), 1, file);
+		fwrite(&freq_ptr->leaf.r, sizeof(uint32_t), 1, file);
 	}
 	assert(ret == (int)ctx->freqs.length);
 
@@ -379,7 +397,6 @@ int bpe_unpack(bpe* ctx, const char* file_path){
 	// Read ctx->freqs
 	freq a;
 	for(uint32_t i = 0; i < freqs_length; i++){
-
 		ret = fread(&a, sizeof(freq), 1, file);
 		DA_append(&(ctx->freqs), (void*)&a);
 	}
@@ -392,3 +409,39 @@ int bpe_unpack(bpe* ctx, const char* file_path){
     return 0;
 }
 
+void traverse(DArray* arr, uint32_t val, bpe* ctx){
+	if (val <= ctx->highest_id){
+		assert(val == (uint8_t)val);
+		DA_append(arr, (void*)&val);
+		return;
+	}else{
+
+		uint32_t index = val - (ctx->highest_id + 1);
+		// if (index >= ctx->freqs.length) {printf("the value = %u\n", val); exit(69);}
+		freq f = *(freq*)DA_get_element(&ctx->freqs, index);
+		assert(DA_get_element(&ctx->freqs, val - (ctx->highest_id + 1)) != NULL);
+		traverse(arr, f.leaf.l, ctx);
+		traverse(arr, f.leaf.r, ctx);
+
+	}
+}
+
+void bpe_decode(bpe* ctx, String_View* out){
+	assert(ctx->compressed.length > 0);
+	LLNode *current = ctx->compressed.head;
+	DArray decompressed = DA_create_array(sizeof(uint8_t), 256, 256);
+	size_t current_idx = 0;
+	while(current != NULL){
+		if (*(uint32_t*)(current->data) <= ctx->highest_id){
+			uint8_t* ch = (uint8_t*)current->data;
+			assert(*ch == *(uint32_t*)current->data);
+			DA_append(&decompressed, ch);
+		}else{
+			traverse(&decompressed, *(uint32_t*)current->data, ctx);
+		}
+		current_idx++;
+		current = current->next;
+	}
+	SV_from_DA(out, &decompressed);
+	DA_destroy(&decompressed);
+}
