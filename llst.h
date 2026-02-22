@@ -1,9 +1,8 @@
-// TODO: implement flexible linked list
 #ifndef LLST_H_
 #define LLST_H_
 
 #define LLSTDEF static inline
-
+#include <assert.h>
 
 
 // Bulid struct Node
@@ -23,6 +22,7 @@ typedef struct {
 LLSTDEF LLST LLST_create(uint16_t element_size);
 LLSTDEF void LLST_append(LLST* llst, void* item);
 // LLSTDEF LLST LLST_delete(LLST* llst, size_t index);
+LLSTDEF void LLST_destroy(LLST* llst);
 
 
 #endif // LLST_H_
@@ -53,6 +53,19 @@ LLSTDEF void LLST_append(LLST* llst, void* item){
 		llst->tail = node;
 	}
 	llst->length++;	
+}
+
+LLSTDEF void LLST_destroy(LLST* llst){
+	LLNode *prev = NULL;
+	LLNode* current = llst->head;
+
+	while(current){
+		prev = current;
+		current = current->next;
+		free(prev->data);
+		free(prev);
+		llst->length--;
+	}
 }
 
 #endif // LLST_IMPLEMENTATION

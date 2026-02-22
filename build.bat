@@ -10,14 +10,14 @@ IF /I "%1" == "" (
 IF /I "%1" == "run" (
 	@echo on
 	call gcc -Wall -Wextra -ggdb -o3 -o main.exe main.c
-	call main.exe %2 %3
+	call main.exe %2 %3 %4
 )
 @echo off
 IF /I "%1" == "debug" (
 	@echo on
 	call wsl gcc -Wall -Wextra -o0 -ggdb -o main main.c
-	call wsl valgrind ./main %2 %3 --leak-check=full
-	call del main
+	call wsl valgrind ./main %2 %3 %4 --leak-check=full
+	call del main 
 )
 
 @echo off

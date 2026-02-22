@@ -28,7 +28,6 @@ SVDEF int SV_setstr(String_View *sv, uint8_t index, char sub_string[]);
 SVDEF String_View SV_merge_cstr(String_View *sv, const char* string);
 SVDEF void SV_merge_parts(String_View *sv, const char* chunk, size_t len);
 SVDEF void SV_to_cstr(String_View* sv, char cstr[]);
-// TODO: add this func to the main file
 SVDEF String_View SV_concat(String_View* sv1, String_View* sv2);
 SVDEF char SV_get_by_index(String_View *sv, double index);
 SVDEF bool SV_isdigit(String_View *sv);
@@ -42,6 +41,7 @@ SVDEF void SV_clear(String_View *sv);
 SVDEF void SV_destroy(String_View * sv);
 SVDEF void SVEx_zfill(char buffer[], size_t buffer_size, int num);
 SVDEF size_t SVEx_read_file(String_View *sv, FILE* f);
+SVDEF size_t SVEx_write_file(String_View *sv, FILE* f);
 
 #endif // STRING_VIEW_H_
 
@@ -94,7 +94,6 @@ SVDEF void SV_setchar(String_View * sv, uint32_t index, char c){
     sv->buffer[index] = c;
 }
 
-// TODO: Fix that in the main file
 double SV_find(String_View * sv, const char sub_string[]){
     /*
     return the index of the first mach between
@@ -315,6 +314,7 @@ SVDEF void SVEx_zfill(char buffer[], size_t zfill_num, int num){
 }
 
 SVDEF size_t SVEx_read_file(String_View *sv, FILE* f){
+    // TODO: Determine the FILE* is Readable
     size_t chars_num = 0;
     char c;
     fseek(f, 0, SEEK_END);
@@ -330,6 +330,12 @@ SVDEF size_t SVEx_read_file(String_View *sv, FILE* f){
         }
     }
     sv->buffer[sv->length] = '\0';
+    return chars_num;
+}
+
+SVDEF size_t SVEx_write_file(String_View *sv, FILE* f){
+    // TODO: Determine the FILE* is writable
+    int chars_num = fwrite(sv->buffer, sizeof(char), sv->length, f);
     return chars_num;
 }
 

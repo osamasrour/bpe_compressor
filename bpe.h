@@ -38,13 +38,11 @@ typedef struct bpe{
 }bpe;
 
 void bpe_init(bpe*);
-// TODO(#2): make it compress algo - encode and decode functions - to compress and decompress the files
-// to emprove storage methods, dump the pairs in the hardware with the compressed file so you can
-// decompress it back
 void bpe_encode(bpe*);
 int bpe_pack(bpe*, const char*);
 int bpe_unpack(bpe*, const char*);
 void bpe_decode(bpe*, String_View*);
+void bpe_destroy(bpe*);
 
 
 #endif // BPE_H_
@@ -53,6 +51,9 @@ void bpe_decode(bpe*, String_View*);
 #ifdef BPE_IMPLEMENTATION
 
 void bpe_init(bpe* ctx){
+	memcpy(ctx->header, 
+			(char[BPE_HEADER_CAP]){'B', 'P', 'E', '0', 'L', 'E'}, 
+			BPE_HEADER_CAP);
 	ctx->compressed = LLST_create(sizeof(uint32_t));
 	ctx->freqs = DA_create_array(sizeof(freq), 256, 256);
 }
@@ -73,7 +74,7 @@ void bpe_encode(bpe* user){
     }
 
     user->highest_id = higgest_trecker_value; // The value of the highest sample we reached in the article.
-    printf("\nThe higgest ID: %u\n\n", user->highest_id);
+    printf("\n[INFO]: The higgest ID: %u\n\n", user->highest_id);
 
     pairs_map* merge_hash_map_p = NULL;
     pairs_map most_repated_pair = {0};
@@ -105,7 +106,8 @@ void bpe_encode(bpe* user){
         }
 
         if(most_repated_pair.value <= MINIMUM_REPET_COST) {
-        	printf("\n\n[EXIT]tokens count: %lld\n", hmlen(merge_hash_map_p));
+        	printf("\n\n[EXIT]: tokens count: %lld\n", hmlen(merge_hash_map_p));
+        	hmfree(merge_hash_map_p);
         	break;
         };
 
@@ -163,7 +165,7 @@ void bpe_encode(bpe* user){
             current_node = current_node->next;
         }
 
-        printf("Iteration %.4d: Merged (%.4u, %.4u) into %.4u, tokens count: %.4lld   \r", 
+        printf("[INFO]: Iteration %.4d: Merged (%.4u, %.4u) into %.4u, tokens count: %.4lld   \r", 
                 ++iter, most_repated_pair.key.l, most_repated_pair.key.r, higgest_trecker_value, hmlen(merge_hash_map_p));
     }
 
@@ -184,7 +186,6 @@ int bpe_pack(bpe* ctx, const char* file_path){
     assert(ret == BPE_HEADER_CAP);
 
     // Writing the ctx->compressed.length
-    printf("[INFO] ctx->compressed.length = %u\n", ctx->compressed.length);
     ret = fwrite(&ctx->compressed.length, sizeof(uint32_t), 1, file);
     assert(ret == 1);
 
@@ -199,12 +200,10 @@ int bpe_pack(bpe* ctx, const char* file_path){
 	assert(ret == (int)ctx->compressed.length);
     
     // Writing the ctx->highest_id
-    printf("[INFO] ctx->highest_id = %u\n", ctx->highest_id);
     ret = fwrite(&ctx->highest_id, sizeof(uint32_t), 1, file);
     assert(ret == 1);
 
     // Writing the ctx->freqs.length
-    printf("[INFO] ctx->freqs.length = %u\n", ctx->freqs.length);
     ret = fwrite(&ctx->freqs.length, sizeof(uint32_t), 1, file);
     assert(ret == 1);
 
@@ -213,13 +212,7 @@ int bpe_pack(bpe* ctx, const char* file_path){
 	for(uint32_t i = 0; i < ctx->freqs.length; i++){
 		// log freqs
 		freq* freq_ptr = DA_get_element(&ctx->freqs, i);
-		printf("   /|%u\n", ((freq*)freq_ptr)->leaf.l);
-		printf("%u\n", ((freq*)freq_ptr)->node);
-		printf("   \\|%u\n\n", ((freq*)freq_ptr)->leaf.r);
-
-		ret += fwrite(&freq_ptr->node, sizeof(uint32_t), 1, file);
-		fwrite(&freq_ptr->leaf.l, sizeof(uint32_t), 1, file);
-		fwrite(&freq_ptr->leaf.r, sizeof(uint32_t), 1, file);
+		ret += fwrite(freq_ptr, sizeof(freq), 1, file);
 	}
 	assert(ret == (int)ctx->freqs.length);
 
@@ -236,9 +229,12 @@ int bpe_unpack(bpe* ctx, const char* file_path){
     }
 
     int ret;
-    ret = fread(&(ctx->header), sizeof(char), BPE_HEADER_CAP, file);
-    assert(ret == BPE_HEADER_CAP);
+    char header_cunck[BPE_HEADER_CAP];
+    ret = fread(header_cunck, sizeof(char), BPE_HEADER_CAP, file);
     // TODO: handle the version here
+    if(strncmp(header_cunck, ctx->header, BPE_HEADER_CAP) != 0){
+    	fprintf(stderr, "[ERROR]: INVALID HEADER => %6s", header_cunck);
+    }
 
 
     uint32_t compressed_length = 0;
@@ -288,7 +284,6 @@ void traverse(DArray* arr, uint32_t val, bpe* ctx){
 	}else{
 
 		uint32_t index = val - (ctx->highest_id + 1);
-		// if (index >= ctx->freqs.length) {printf("the value = %u\n", val); exit(69);}
 		freq f = *(freq*)DA_get_element(&ctx->freqs, index);
 		assert(DA_get_element(&ctx->freqs, val - (ctx->highest_id + 1)) != NULL);
 		traverse(arr, f.leaf.l, ctx);
@@ -315,6 +310,12 @@ void bpe_decode(bpe* ctx, String_View* out){
 	}
 	SV_from_DA(out, &decompressed);
 	DA_destroy(&decompressed);
+}
+
+void bpe_destroy(bpe* ctx){
+	LLST_destroy(&ctx->compressed);
+	DA_destroy(&ctx->freqs);
+	ctx->highest_id = 0;
 }
 
 #endif // BPE_IMPLEMENTATION
