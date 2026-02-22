@@ -3,6 +3,7 @@
 #include "da.h"
 #include "sv.h"
 #include "llst.h"
+#include <assert.h>
 
 void DA_from_SV(DArray*, String_View*);
 void SV_from_DA(String_View*, DArray*);
