@@ -231,7 +231,7 @@ int bpe_unpack(bpe* ctx, const char* file_path){
     int ret;
     char header_cunck[BPE_HEADER_CAP];
     ret = fread(header_cunck, sizeof(char), BPE_HEADER_CAP, file);
-    // TODO: handle the version here
+    // TODO(#4): we don't handle the version of the .bpe file.
     if(strncmp(header_cunck, ctx->header, BPE_HEADER_CAP) != 0){
     	fprintf(stderr, "[ERROR]: INVALID HEADER => %6s", header_cunck);
     }
