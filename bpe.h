@@ -61,7 +61,7 @@ void bpe_init(bpe* ctx){
 // the algo complexity: f(x) = 0.00226*(x*x), which x: size of the file in KB, and f(x): number of seconds
 void bpe_encode(bpe* user){
     static uint32_t iter = 0;
-    uint32_t register higgest_trecker_value = 0;
+    register uint32_t  higgest_trecker_value = 0;
     
     
     // 1. Initial Scan for Highest ID
