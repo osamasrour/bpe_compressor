@@ -2,3 +2,4 @@
 training
 *.exe
 *.bpe
+foo.c

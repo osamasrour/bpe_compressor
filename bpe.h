@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <assert.h>
-#include "stb_ds.h"
+#include "ht.h"
 
 
 #if __BYTE_ORDER__ != __ORDER_LITTLE_ENDIAN__
@@ -75,8 +75,10 @@ void bpe_encode(bpe* user){
 
     user->highest_id = higgest_trecker_value; // The value of the highest sample we reached in the article.
     printf("\n[INFO]: The higgest ID: %u\n\n", user->highest_id);
+    Ht(pair, uint32_t) merge_hash_map = {
+        .hasheq = ht_mem_hasheq,
+    };
 
-    pairs_map* merge_hash_map_p = NULL;
     pairs_map most_repated_pair = {0};
 
     // 2. Initial Map Generation
@@ -86,11 +88,11 @@ void bpe_encode(bpe* user){
             .l = *(uint32_t*)(current_node->data), 
             .r = *(uint32_t*)(current_node->next->data)
         };
-        pairs_map* pair_p = hmgetp_null(merge_hash_map_p, test_pair);
-        if(pair_p == NULL){
-            hmput(merge_hash_map_p, test_pair, 1);
+        uint32_t* value_p = ht_find(&merge_hash_map, test_pair);
+        if(value_p == NULL){
+            *ht_put(&merge_hash_map, test_pair) = 1;
         }else{
-            pair_p->value++;
+            (*value_p)++;
         }
         current_node = current_node->next;
     }
@@ -98,16 +100,18 @@ void bpe_encode(bpe* user){
     while(1){
         // Find the most frequent pair in the map
         most_repated_pair = (pairs_map){0};
-        int hashmap_length = hmlen(merge_hash_map_p);
-        for(int i = 0; i < hashmap_length; ++i) {
-            if(merge_hash_map_p[i].value > most_repated_pair.value) {
-                most_repated_pair = merge_hash_map_p[i];
+        uint32_t* value_p = NULL;
+        while(ht_next(&merge_hash_map, &value_p)){
+            pair key = ht_key(&merge_hash_map, value_p);
+            if (*value_p > most_repated_pair.value){
+                most_repated_pair.value = *value_p;
+                most_repated_pair.key = key;
             }
         }
 
         if(most_repated_pair.value <= MINIMUM_REPET_COST) {
-        	printf("\n\n[EXIT]: tokens count: %lld\n", hmlen(merge_hash_map_p));
-        	hmfree(merge_hash_map_p);
+        	printf("\n\n[EXIT]: tokens count: %lld\n", (&merge_hash_map)->count);
+        	ht_free(&merge_hash_map);
         	break;
         };
 
@@ -151,22 +155,23 @@ void bpe_encode(bpe* user){
 
         // 4. SEPARATE MAP UPDATE LOOP
         // This loop wipes the map and re-calculates everything from the new list
-        hmfree(merge_hash_map_p);
-        merge_hash_map_p = NULL;
+        ht_reset(&merge_hash_map);
         current_node = (&user->compressed)->head;
         while(current_node != NULL && current_node->next != NULL){
             pair test_pair = {
                 .l = *(uint32_t*)current_node->data, 
                 .r = *(uint32_t*)current_node->next->data
             };
-            pairs_map* pair_p = hmgetp_null(merge_hash_map_p, test_pair);
-            if(pair_p == NULL) hmput(merge_hash_map_p, test_pair, 1);
-            else pair_p->value++;
+            uint32_t* value_p = ht_find(&merge_hash_map, test_pair);
+            if(value_p == NULL) {
+                *ht_put(&merge_hash_map, test_pair) = 1;
+            }
+            else (*value_p)++;
             current_node = current_node->next;
         }
 
         printf("[INFO]: Iteration %.4d: Merged (%.4u, %.4u) into %.4u, tokens count: %.4lld   \r", 
-                ++iter, most_repated_pair.key.l, most_repated_pair.key.r, higgest_trecker_value, hmlen(merge_hash_map_p));
+                ++iter, most_repated_pair.key.l, most_repated_pair.key.r, higgest_trecker_value, (&merge_hash_map)->count);
     }
 
     printf("\n");

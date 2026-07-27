@@ -6,7 +6,7 @@
 #define UTIL_IMPLEMENTATION
 #include "util.h"
 #define BPE_IMPLEMENTATION
-#define STB_DS_IMPLEMENTATION
+#define HT_IMPLEMENTATION
 #include "bpe.h"
 
 enum OPTION{
