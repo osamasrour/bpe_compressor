@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #define DA_IMPLEMENTATION
-#define SV_IMPLEMENTATION
+#define SB_IMPLEMENTATION
 #define LLST_IMPLEMENTATION
 #define UTIL_IMPLEMENTATION
 #include "util.h"
@@ -48,22 +48,22 @@ int main(int argc, char const *argv[]){
 		bpe_init(&user);
 		int ret = bpe_unpack(&user, input_path);
 		assert(ret == 0);
-		String_View text = SV_create("");
+		String_Builder text = SB_create("");
 		bpe_decode(&user, &text);
 		bpe_destroy(&user);
 		FILE* out = fopen(output_path, "w");
-		SVEx_write_file(&text, out);
+		SBEx_write_file(&text, out);
 		fclose(out);
-		SV_destroy(&text);
+		SB_destroy(&text);
 	}else if(opt == OPT_ZIP){
 		FILE* in = fopen(input_path, "r");
-		String_View sv_txt = SV_create("");
-		SVEx_read_file(&sv_txt, in);
+		String_Builder sb_txt = SB_create("");
+		SBEx_read_file(&sb_txt, in);
 		fclose(in);
 		bpe user = {0};
 		bpe_init(&user);
-		LLSTu32_from_SV2(&user.compressed, &sv_txt);
-		SV_destroy(&sv_txt);
+		LLSTu32_from_SB2(&user.compressed, &sb_txt);
+		SB_destroy(&sb_txt);
 		bpe_encode(&user);
 		int ret = bpe_pack(&user, output_path);
 		assert(ret == 0);

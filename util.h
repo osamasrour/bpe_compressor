@@ -1,14 +1,14 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 #include "da.h"
-#include "sv.h"
+#include "sb.h"
 #include "llst.h"
 #include <assert.h>
 
-void DA_from_SV(DArray*, String_View*);
-void SV_from_DA(String_View*, DArray*);
-void LLST_from_SV(LLST*, String_View*);
-void LLSTu32_from_SV2(LLST*, String_View*);
+void DA_from_SB(DArray*, String_Builder*);
+void SB_from_DA(String_Builder*, DArray*);
+void LLST_from_SB(LLST*, String_Builder*);
+void LLSTu32_from_SB2(LLST*, String_Builder*);
 void llst_log(LLST);
 
 #endif // UTIL_H_
@@ -19,15 +19,15 @@ void llst_log(LLST);
 // Returns a dynamic array of `char*`.
 // To cast its elements to `char*`, you need to do: *(char**)DA_get_element(DArray* da, double index)
 // It needs to be freed after finishing.
-void DA_from_SV(DArray* da, String_View* sv){
+void DA_from_SB(DArray* da, String_Builder* sb){
 	assert(da->length == 0);
-	da->capacity = sv->length;
+	da->capacity = sb->length;
 	da->element_size = sizeof(char*);
 	da->elements = (char*)realloc(da->elements, sizeof(char*) * da->capacity);
-	for(size_t ch = 0; ch < sv->length; ch++){
+	for(size_t ch = 0; ch < sb->length; ch++){
 		char* chars = (char*)malloc(2*sizeof(char));
 		assert(chars != NULL);
-		chars[0] = SV_get_by_index(sv, ch);
+		chars[0] = SB_get_by_index(sb, ch);
 		chars[1] = '\0';
 		char** dchars = &chars;
 		assert(memcpy(da->elements + (ch * da->element_size), dchars, da->element_size) != NULL);
@@ -35,37 +35,37 @@ void DA_from_SV(DArray* da, String_View* sv){
 	}
 }
 
-void SV_from_DA(String_View* sv, DArray* da){
+void SB_from_DA(String_Builder* sb, DArray* da){
 	char *chunk = malloc(da->length * sizeof(char));
 	memset(chunk, 0, da->length);
 	for(uint32_t i = 0; i < da->length; i++){
 		chunk[i] = *(uint8_t*)DA_get_element(da, i);
 	}
-	SV_merge_parts(sv,chunk, da->length);
+	SB_merge_parts(sb,chunk, da->length);
 }
 
 
-void LLST_from_SV(LLST* llst, String_View* sv){
+void LLST_from_SB(LLST* llst, String_Builder* sb){
 	assert(llst->length == 0);
 	llst->element_size = sizeof(char*);
-	for(size_t ch = 0; ch < sv->length; ch++){
+	for(size_t ch = 0; ch < sb->length; ch++){
 		char* chars = (char*)malloc(2*sizeof(char));
 		assert(chars != NULL);
-		chars[0] = SV_get_by_index(sv, ch);
+		chars[0] = SB_get_by_index(sb, ch);
 		chars[1] = '\0';
 		char** dchars = &chars;
 		LLST_append(llst, dchars);
 	}
 }
 
-void LLSTu32_from_SV2(LLST* llst, String_View* sv){
+void LLSTu32_from_SB2(LLST* llst, String_Builder* sb){
 	assert(llst->length == 0);
 	llst->element_size = sizeof(uint32_t);
-	for(size_t ch = 0; ch < sv->length; ch++){
+	for(size_t ch = 0; ch < sb->length; ch++){
 		uint32_t* _char = (uint32_t*)malloc(sizeof(uint32_t));
 		memset(_char, 0, sizeof(uint32_t));
 		assert(_char != NULL);
-		*_char = (uint32_t)(unsigned char)SV_get_by_index(sv, ch);
+		*_char = (uint32_t)(unsigned char)SB_get_by_index(sb, ch);
 		LLST_append(llst, _char);
 	}
 }

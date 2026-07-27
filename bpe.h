@@ -41,7 +41,7 @@ void bpe_init(bpe*);
 void bpe_encode(bpe*);
 int bpe_pack(bpe*, const char*);
 int bpe_unpack(bpe*, const char*);
-void bpe_decode(bpe*, String_View*);
+void bpe_decode(bpe*, String_Builder*);
 void bpe_destroy(bpe*);
 
 
@@ -292,7 +292,7 @@ void traverse(DArray* arr, uint32_t val, bpe* ctx){
 	}
 }
 
-void bpe_decode(bpe* ctx, String_View* out){
+void bpe_decode(bpe* ctx, String_Builder* out){
 	assert(ctx->compressed.length > 0);
 	LLNode *current = ctx->compressed.head;
 	DArray decompressed = DA_create_array(sizeof(uint8_t), 256, 256);
@@ -308,7 +308,7 @@ void bpe_decode(bpe* ctx, String_View* out){
 		current_idx++;
 		current = current->next;
 	}
-	SV_from_DA(out, &decompressed);
+	SB_from_DA(out, &decompressed);
 	DA_destroy(&decompressed);
 }
 
